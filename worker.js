@@ -21,17 +21,20 @@
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, OPTIONS",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type",
 };
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36";
 
 export default {
-  async fetch(request) {
+  async fetch(request, env) {
     if (request.method === "OPTIONS") return new Response(null, { headers: CORS });
 
     const url = new URL(request.url);
+    // 공유 자료 저장/불러오기 (Cloudflare KV)
+    const dataKey = url.searchParams.get("data");
+    if (dataKey) return await handleData(request, env, dataKey);
     // 티커 → 네이버 월드스톡 페이지 주소 변환 (예: QQQ → worldstock/etf/QQQ.O/total)
     const nvlink = url.searchParams.get("nvlink");
     if (nvlink) return json(await naverWorldUrl(nvlink, url.searchParams.get("raw")), 200);
@@ -376,6 +379,24 @@ function num(v) {
 function round(n, p) {
   const f = Math.pow(10, p);
   return Math.round(n * f) / f;
+}
+// 공유 자료 저장/불러오기 (Cloudflare KV). GET=읽기, POST=쓰기
+const ALLOWED_KEYS = new Set(["val_us", "val_usetf", "val_kretf", "val_kr"]);
+async function handleData(request, env, key) {
+  if (!ALLOWED_KEYS.has(key)) return json({ ok: false, error: "bad key" }, 400);
+  if (!env || !env.KV) return json({ ok: false, error: "no kv binding" }, 500);
+  try {
+    if (request.method === "POST" || request.method === "PUT") {
+      const body = await request.text();
+      if (body.length > 2000000) return json({ ok: false, error: "too large" }, 413);
+      await env.KV.put(key, body);
+      return json({ ok: true }, 200);
+    }
+    const value = await env.KV.get(key);
+    return json({ ok: true, value }, 200);
+  } catch (e) {
+    return json({ ok: false, error: String(e) }, 500);
+  }
 }
 function json(obj, status) {
   return new Response(JSON.stringify(obj), {
