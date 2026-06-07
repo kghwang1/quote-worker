@@ -35,6 +35,9 @@ export default {
     // 공유 자료 저장/불러오기 (Cloudflare KV)
     const dataKey = url.searchParams.get("data");
     if (dataKey) return await handleData(request, env, dataKey);
+    // 기업명/코드 검색 → 종목코드 (네이버 자동완성)
+    const find = url.searchParams.get("find");
+    if (find) return json(await naverFind(find), 200);
     // 티커 → 네이버 월드스톡 페이지 주소 변환 (예: QQQ → worldstock/etf/QQQ.O/total)
     const nvlink = url.searchParams.get("nvlink");
     if (nvlink) return json(await naverWorldUrl(nvlink, url.searchParams.get("raw")), 200);
@@ -379,6 +382,31 @@ function num(v) {
 function round(n, p) {
   const f = Math.pow(10, p);
   return Math.round(n * f) / f;
+}
+// 기업명/코드 → 종목코드 후보 (네이버 자동완성 중계)
+async function naverFind(q) {
+  const u = "https://m.stock.naver.com/front-api/search/autoComplete?query=" +
+    encodeURIComponent(q) + "&target=stock,etf";
+  try {
+    const res = await fetch(u, {
+      headers: { "User-Agent": UA, "Accept": "application/json", "Referer": "https://m.stock.naver.com/" },
+      cf: { cacheTtl: 60 },
+    });
+    if (!res.ok) return { ok: false, error: "naver " + res.status };
+    const d = await res.json();
+    const items = (d && d.result && d.result.items) || (d && d.items) || [];
+    const out = [];
+    for (const it of items) {
+      const rawCode = it.code || it.cd || it.reutersCode || (Array.isArray(it) ? it[0] : null);
+      const name = it.name || it.nm || (Array.isArray(it) ? it[1] : null);
+      const c = String(rawCode || "").replace(/[^0-9]/g, "");
+      if (c.length === 6 && name) out.push({ code: c, name: String(name).replace(/<[^>]*>/g, "") });
+      if (out.length >= 8) break;
+    }
+    return { ok: true, items: out };
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  }
 }
 // 공유 자료 저장/불러오기 (Cloudflare KV). GET=읽기, POST=쓰기
 const ALLOWED_KEYS = new Set(["val_us", "val_usetf", "val_kretf", "val_kr"]);
