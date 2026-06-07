@@ -1,7 +1,12 @@
+# Cloudflare Workers 배포 설정
+# name은 기존 worker 이름과 똑같아야 합니다 (그래야 quote.kghwang1.workers.dev 주소가 유지됨)
 name = "quote"
 main = "worker.js"
 compatibility_date = "2025-01-01"
 
+# 공유 자료 저장용 KV (서버 저장 기능)
+# 1) Cloudflare 대시보드 → Storage & Databases → KV → Create namespace 로 네임스페이스를 만들고
+# 2) 거기서 보이는 ID를 아래 id = "..." 에 붙여넣으세요. (binding 이름은 반드시 KV 로 두세요)
 [[kv_namespaces]]
 binding = "KV"
-id = "670b4bcb3b8c42d9939341823f744fa1"
+id = "여기에_KV_네임스페이스_ID_붙여넣기"
