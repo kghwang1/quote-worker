@@ -1,0 +1,5 @@
+# Cloudflare Workers 배포 설정
+# name은 기존 worker 이름과 똑같아야 합니다 (그래야 quote.kghwang1.workers.dev 주소가 유지됨)
+name = "quote"
+main = "worker.js"
+compatibility_date = "2025-01-01"
