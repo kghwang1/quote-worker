@@ -383,30 +383,40 @@ function round(n, p) {
   const f = Math.pow(10, p);
   return Math.round(n * f) / f;
 }
-// 기업명/코드 → 종목코드 후보 (네이버 자동완성 중계)
+// 기업명/코드 → 종목코드 후보 (네이버 자동완성 중계, 두 엔드포인트 시도)
 async function naverFind(q) {
-  const u = "https://m.stock.naver.com/front-api/search/autoComplete?query=" +
-    encodeURIComponent(q) + "&target=stock,etf";
-  try {
-    const res = await fetch(u, {
-      headers: { "User-Agent": UA, "Accept": "application/json", "Referer": "https://m.stock.naver.com/" },
-      cf: { cacheTtl: 60 },
-    });
-    if (!res.ok) return { ok: false, error: "naver " + res.status };
-    const d = await res.json();
-    const items = (d && d.result && d.result.items) || (d && d.items) || [];
-    const out = [];
-    for (const it of items) {
-      const rawCode = it.code || it.cd || it.reutersCode || (Array.isArray(it) ? it[0] : null);
-      const name = it.name || it.nm || (Array.isArray(it) ? it[1] : null);
-      const c = String(rawCode || "").replace(/[^0-9]/g, "");
-      if (c.length === 6 && name) out.push({ code: c, name: String(name).replace(/<[^>]*>/g, "") });
-      if (out.length >= 8) break;
-    }
-    return { ok: true, items: out };
-  } catch (e) {
-    return { ok: false, error: String(e) };
+  const urls = [
+    "https://m.stock.naver.com/front-api/search/autoComplete?query=" + encodeURIComponent(q) + "&target=stock,index,etf",
+    "https://ac.stock.naver.com/ac?q=" + encodeURIComponent(q) + "&target=stock,etf",
+  ];
+  for (const u of urls) {
+    try {
+      const res = await fetch(u, {
+        headers: { "User-Agent": UA, "Accept": "application/json", "Referer": "https://m.stock.naver.com/" },
+        cf: { cacheTtl: 60 },
+      });
+      if (!res.ok) continue;
+      const d = await res.json();
+      const items = (d && d.result && d.result.items) || (d && d.items) || [];
+      const out = [];
+      for (const it of items) {
+        let rawCode, name;
+        if (Array.isArray(it)) {            // ac.stock 형식: [[code],[name],...]
+          rawCode = Array.isArray(it[0]) ? it[0][0] : it[0];
+          name = Array.isArray(it[1]) ? it[1][0] : it[1];
+        } else {                            // front-api 형식: {code, name}
+          rawCode = it.code || it.cd || it.itemCode || it.reutersCode;
+          name = it.name || it.nm || it.korNm || it.itemName;
+        }
+        const c = String(rawCode || "").replace(/[^0-9]/g, "");
+        const nm = String(name || "").replace(/<[^>]*>/g, "").trim();
+        if (c.length === 6 && nm) out.push({ code: c, name: nm });
+        if (out.length >= 8) break;
+      }
+      if (out.length) return { ok: true, items: out };
+    } catch (e) { /* 다음 후보 */ }
   }
+  return { ok: true, items: [] };
 }
 // 공유 자료 저장/불러오기 (Cloudflare KV). GET=읽기, POST=쓰기
 const ALLOWED_KEYS = new Set(["val_us", "val_usetf", "val_kretf", "val_kr"]);
