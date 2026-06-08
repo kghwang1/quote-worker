@@ -419,7 +419,7 @@ async function naverFind(q) {
   return { ok: true, items: [] };
 }
 // 공유 자료 저장/불러오기 (Cloudflare KV). GET=읽기, POST=쓰기
-const ALLOWED_KEYS = new Set(["val_us", "val_usetf", "val_kretf", "val_kr"]);
+const ALLOWED_KEYS = new Set(["val_us", "val_usetf", "val_kretf", "val_kr", "val_kr2"]);
 async function handleData(request, env, key) {
   if (!ALLOWED_KEYS.has(key)) return json({ ok: false, error: "bad key" }, 400);
   if (!env || !env.KV) return json({ ok: false, error: "no kv binding" }, 500);
